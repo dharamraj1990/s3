@@ -1,0 +1,174 @@
+name: S3 Terraform Plan and Apply
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'terragrunt-configs/s3/**'
+      - '.github/workflows/s3-terraform.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'terragrunt-configs/s3/**'
+      - '.github/workflows/s3-terraform.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (dev, staging, prod)'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      bucket_type:
+        description: 'Bucket type to create'
+        required: true
+        type: choice
+        options:
+          - normal
+          - access_log
+          - vpc_flow_log
+      bucket_name:
+        description: 'Custom bucket name (optional, will auto-generate if not provided)'
+        required: false
+        type: string
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  AWS_REGION: 'us-east-1'
+  TERRAFORM_VERSION: '1.6.0'
+  TERRAGRUNT_VERSION: '0.54.0'
+
+jobs:
+  terraform:
+    name: Terraform ${{ github.event.inputs.action || 'Plan' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Set environment variables
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            BUCKET_TYPE="${{ github.event.inputs.bucket_type }}"
+            BUCKET_NAME="${{ github.event.inputs.bucket_name }}"
+            ACTION="${{ github.event.inputs.action }}"
+          else
+            # Default to dev for push/PR events
+            ENVIRONMENT="dev"
+            BUCKET_TYPE="normal"
+            BUCKET_NAME=""
+            ACTION="plan"
+          fi
+          
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "bucket_type=$BUCKET_TYPE" >> $GITHUB_OUTPUT
+          echo "bucket_name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "action=$ACTION" >> $GITHUB_OUTPUT
+          
+          echo "Environment: $ENVIRONMENT"
+          echo "Bucket Type: $BUCKET_TYPE"
+          echo "Bucket Name: $BUCKET_NAME"
+          echo "Action: $ACTION"
+
+      - name: Run Terragrunt ${{ steps.set-env.outputs.action }}
+        working-directory: ./terragrunt-configs/s3/env/${{ steps.set-env.outputs.environment }}
+        env:
+          ENVIRONMENT: ${{ steps.set-env.outputs.environment }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          PROJECT: ${{ secrets.PROJECT_NAME || 'default' }}
+          S3_BUCKET_TYPE: ${{ steps.set-env.outputs.bucket_type }}
+          S3_BUCKET_NAME: ${{ steps.set-env.outputs.bucket_name }}
+          S3_VERSIONING_ENABLED: ${{ secrets.S3_VERSIONING_ENABLED || 'true' }}
+          S3_ENCRYPTION_ENABLED: ${{ secrets.S3_ENCRYPTION_ENABLED || 'true' }}
+          S3_ENCRYPTION_TYPE: ${{ secrets.S3_ENCRYPTION_TYPE || 'AES256' }}
+          S3_ENABLE_SECURE_TRANSPORT: ${{ secrets.S3_ENABLE_SECURE_TRANSPORT || 'true' }}
+          S3_ENABLE_LIFECYCLE_POLICY: ${{ secrets.S3_ENABLE_LIFECYCLE_POLICY || 'true' }}
+          S3_DEFAULT_LIFECYCLE_RULES: ${{ secrets.S3_DEFAULT_LIFECYCLE_RULES || 'true' }}
+          S3_ACCESS_LOG_PREFIX: ${{ secrets.S3_ACCESS_LOG_PREFIX || 'access-logs/' }}
+          S3_VPC_FLOW_LOG_PREFIX: ${{ secrets.S3_VPC_FLOW_LOG_PREFIX || 'vpc-flow-logs/' }}
+        run: |
+          echo "Running Terragrunt ${{ steps.set-env.outputs.action }}..."
+          echo "Working directory: $(pwd)"
+          echo ""
+          echo "Environment variables:"
+          echo "  ENVIRONMENT: $ENVIRONMENT"
+          echo "  AWS_REGION: $AWS_REGION"
+          echo "  PROJECT: $PROJECT"
+          echo "  S3_BUCKET_TYPE: $S3_BUCKET_TYPE"
+          echo "  S3_BUCKET_NAME: $S3_BUCKET_NAME"
+          echo ""
+          
+          # Initialize Terragrunt
+          echo "Initializing Terragrunt..."
+          terragrunt init
+          
+          # Run the specified action
+          if [ "${{ steps.set-env.outputs.action }}" == "plan" ]; then
+            echo "Running Terragrunt Plan..."
+            terragrunt plan -out=tfplan
+          elif [ "${{ steps.set-env.outputs.action }}" == "apply" ]; then
+            echo "Running Terragrunt Apply..."
+            terragrunt apply -auto-approve
+          elif [ "${{ steps.set-env.outputs.action }}" == "destroy" ]; then
+            echo "Running Terragrunt Destroy..."
+            terragrunt destroy -auto-approve
+          fi
+          
+          echo "✅ Terragrunt ${{ steps.set-env.outputs.action }} completed successfully"
+
+      - name: Output bucket information
+        if: steps.set-env.outputs.action == 'apply'
+        working-directory: ./terragrunt-configs/s3/env/${{ steps.set-env.outputs.environment }}
+        run: |
+          echo "## Bucket Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ steps.set-env.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bucket Type**: ${{ steps.set-env.outputs.bucket_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **AWS Region**: ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Try to get bucket name from output
+          if terragrunt output bucket_name > /dev/null 2>&1; then
+            BUCKET_NAME=$(terragrunt output -raw bucket_name)
+            echo "- **Bucket Name**: $BUCKET_NAME" >> $GITHUB_STEP_SUMMARY
+            echo "- **Bucket ARN**: $(terragrunt output -raw bucket_arn)" >> $GITHUB_STEP_SUMMARY
+          fi
+
