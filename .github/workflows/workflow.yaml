@@ -177,20 +177,28 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
-            # Verify credentials
+            # Verify credentials were extracted
             if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
-              echo "Error: Failed to extract credentials from assume role output"
+              echo "❌ Error: Failed to extract credentials from assume role output"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
-            echo "Successfully assumed role $ROLE_ARN"
+            echo "✅ Successfully assumed role $ROLE_ARN"
+            echo "   Access Key ID: ${AWS_ACCESS_KEY_ID:0:10}..."
             
             # Verify AWS credentials work
-            aws sts get-caller-identity || {
-              echo "Error: Failed to verify AWS credentials"
+            echo "Verifying AWS credentials..."
+            CALLER_IDENTITY=$(aws sts get-caller-identity --output json 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: Failed to verify AWS credentials"
+              echo "Error: $CALLER_IDENTITY"
               exit 1
-            }
+            fi
+            
+            echo "✅ AWS credentials verified"
+            echo "   Account: $(echo "$CALLER_IDENTITY" | jq -r '.Account')"
+            echo "   ARN: $(echo "$CALLER_IDENTITY" | jq -r '.Arn')"
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
@@ -366,20 +374,28 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
-            # Verify credentials
+            # Verify credentials were extracted
             if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
-              echo "Error: Failed to extract credentials from assume role output"
+              echo "❌ Error: Failed to extract credentials from assume role output"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
-            echo "Successfully assumed role $ROLE_ARN"
+            echo "✅ Successfully assumed role $ROLE_ARN"
+            echo "   Access Key ID: ${AWS_ACCESS_KEY_ID:0:10}..."
             
             # Verify AWS credentials work
-            aws sts get-caller-identity || {
-              echo "Error: Failed to verify AWS credentials"
+            echo "Verifying AWS credentials..."
+            CALLER_IDENTITY=$(aws sts get-caller-identity --output json 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: Failed to verify AWS credentials"
+              echo "Error: $CALLER_IDENTITY"
               exit 1
-            }
+            fi
+            
+            echo "✅ AWS credentials verified"
+            echo "   Account: $(echo "$CALLER_IDENTITY" | jq -r '.Account')"
+            echo "   ARN: $(echo "$CALLER_IDENTITY" | jq -r '.Arn')"
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
@@ -553,20 +569,28 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
-            # Verify credentials
+            # Verify credentials were extracted
             if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
-              echo "Error: Failed to extract credentials from assume role output"
+              echo "❌ Error: Failed to extract credentials from assume role output"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
-            echo "Successfully assumed role $ROLE_ARN"
+            echo "✅ Successfully assumed role $ROLE_ARN"
+            echo "   Access Key ID: ${AWS_ACCESS_KEY_ID:0:10}..."
             
             # Verify AWS credentials work
-            aws sts get-caller-identity || {
-              echo "Error: Failed to verify AWS credentials"
+            echo "Verifying AWS credentials..."
+            CALLER_IDENTITY=$(aws sts get-caller-identity --output json 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: Failed to verify AWS credentials"
+              echo "Error: $CALLER_IDENTITY"
               exit 1
-            }
+            fi
+            
+            echo "✅ AWS credentials verified"
+            echo "   Account: $(echo "$CALLER_IDENTITY" | jq -r '.Account')"
+            echo "   ARN: $(echo "$CALLER_IDENTITY" | jq -r '.Arn')"
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
