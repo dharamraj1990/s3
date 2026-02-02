@@ -123,8 +123,13 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
-            # Get OIDC token from GitHub
-            OIDC_TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            # Get OIDC token from GitHub Actions
+            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            
+            if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
+              echo "Error: Failed to get OIDC token from GitHub"
+              exit 1
+            fi
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
@@ -132,7 +137,8 @@ jobs:
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
               --web-identity-token "$OIDC_TOKEN" \
-              --duration-seconds 3600 2>&1)
+              --duration-seconds 3600 \
+              --output json 2>&1)
             
             if [ $? -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
@@ -268,8 +274,13 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
-            # Get OIDC token from GitHub
-            OIDC_TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            # Get OIDC token from GitHub Actions
+            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            
+            if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
+              echo "Error: Failed to get OIDC token from GitHub"
+              exit 1
+            fi
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
@@ -277,7 +288,8 @@ jobs:
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
               --web-identity-token "$OIDC_TOKEN" \
-              --duration-seconds 3600 2>&1)
+              --duration-seconds 3600 \
+              --output json 2>&1)
             
             if [ $? -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
@@ -411,8 +423,13 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
-            # Get OIDC token from GitHub
-            OIDC_TOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            # Get OIDC token from GitHub Actions
+            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            
+            if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
+              echo "Error: Failed to get OIDC token from GitHub"
+              exit 1
+            fi
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
@@ -420,7 +437,8 @@ jobs:
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
               --web-identity-token "$OIDC_TOKEN" \
-              --duration-seconds 3600 2>&1)
+              --duration-seconds 3600 \
+              --output json 2>&1)
             
             if [ $? -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
