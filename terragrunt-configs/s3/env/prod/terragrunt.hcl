@@ -1,4 +1,5 @@
 # Production Environment Configuration for S3 Buckets
+# This PR will trigger plan workflow and require approval for apply
 terraform {
   source = "../../module"
 }
