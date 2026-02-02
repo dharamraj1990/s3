@@ -22,7 +22,7 @@ on:
 env:
   TERRAFORM_VERSION: '1.6.0'
   TERRAGRUNT_VERSION: '0.54.0'
-  AWS_REGION: 'us-east-1'
+  AWS_REGION: 'us-west-2'
 
 jobs:
   detect-changes:
