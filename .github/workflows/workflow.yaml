@@ -149,12 +149,18 @@ jobs:
               exit 1
             fi
             
-            echo "OIDC token obtained successfully"
+            echo "OIDC token obtained successfully (length: ${#OIDC_TOKEN} chars)"
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
             echo "Assuming role: $ROLE_ARN"
+            echo "Session name: $ROLE_SESSION_NAME"
             
+            # Set AWS region before assuming role
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Assume role with detailed error handling
+            echo "Executing: aws sts assume-role-with-web-identity..."
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -164,9 +170,43 @@ jobs:
             
             ASSUME_ROLE_EXIT_CODE=$?
             
+            # Check for specific error types
             if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
-              echo "Error: Failed to assume role $ROLE_ARN"
+              echo "❌ Error: Failed to assume role $ROLE_ARN"
               echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "AWS CLI version: $(aws --version 2>&1)"
+              echo "Full error output:"
+              echo "$ASSUME_ROLE_OUTPUT"
+              
+              # Parse and display specific error messages
+              if echo "$ASSUME_ROLE_OUTPUT" | grep -qi "InvalidIdentityToken"; then
+                echo ""
+                echo "🔍 Error Analysis: InvalidIdentityToken"
+                echo "   - The OIDC token may be invalid or expired"
+                echo "   - Check GitHub OIDC provider configuration"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "AccessDenied"; then
+                echo ""
+                echo "🔍 Error Analysis: AccessDenied"
+                echo "   - The IAM role trust policy may not allow GitHub Actions"
+                echo "   - Verify the role trust policy includes GitHub OIDC provider"
+                echo "   - Check that the repository/org is allowed in the trust policy"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "NoSuchEntity"; then
+                echo ""
+                echo "🔍 Error Analysis: NoSuchEntity"
+                echo "   - The role $ROLE_ARN does not exist"
+                echo "   - Verify the role exists in account $ACCOUNT_ID"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "MalformedPolicyDocument"; then
+                echo ""
+                echo "🔍 Error Analysis: MalformedPolicyDocument"
+                echo "   - The role trust policy has syntax errors"
+              fi
+              
+              exit 1
+            fi
+            
+            # Verify the output is valid JSON with credentials
+            if ! echo "$ASSUME_ROLE_OUTPUT" | jq -e '.Credentials' > /dev/null 2>&1; then
+              echo "❌ Error: Assume role output does not contain valid credentials"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
@@ -346,12 +386,18 @@ jobs:
               exit 1
             fi
             
-            echo "OIDC token obtained successfully"
+            echo "OIDC token obtained successfully (length: ${#OIDC_TOKEN} chars)"
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
             echo "Assuming role: $ROLE_ARN"
+            echo "Session name: $ROLE_SESSION_NAME"
             
+            # Set AWS region before assuming role
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Assume role with detailed error handling
+            echo "Executing: aws sts assume-role-with-web-identity..."
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -361,9 +407,43 @@ jobs:
             
             ASSUME_ROLE_EXIT_CODE=$?
             
+            # Check for specific error types
             if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
-              echo "Error: Failed to assume role $ROLE_ARN"
+              echo "❌ Error: Failed to assume role $ROLE_ARN"
               echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "AWS CLI version: $(aws --version 2>&1)"
+              echo "Full error output:"
+              echo "$ASSUME_ROLE_OUTPUT"
+              
+              # Parse and display specific error messages
+              if echo "$ASSUME_ROLE_OUTPUT" | grep -qi "InvalidIdentityToken"; then
+                echo ""
+                echo "🔍 Error Analysis: InvalidIdentityToken"
+                echo "   - The OIDC token may be invalid or expired"
+                echo "   - Check GitHub OIDC provider configuration"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "AccessDenied"; then
+                echo ""
+                echo "🔍 Error Analysis: AccessDenied"
+                echo "   - The IAM role trust policy may not allow GitHub Actions"
+                echo "   - Verify the role trust policy includes GitHub OIDC provider"
+                echo "   - Check that the repository/org is allowed in the trust policy"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "NoSuchEntity"; then
+                echo ""
+                echo "🔍 Error Analysis: NoSuchEntity"
+                echo "   - The role $ROLE_ARN does not exist"
+                echo "   - Verify the role exists in account $ACCOUNT_ID"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "MalformedPolicyDocument"; then
+                echo ""
+                echo "🔍 Error Analysis: MalformedPolicyDocument"
+                echo "   - The role trust policy has syntax errors"
+              fi
+              
+              exit 1
+            fi
+            
+            # Verify the output is valid JSON with credentials
+            if ! echo "$ASSUME_ROLE_OUTPUT" | jq -e '.Credentials' > /dev/null 2>&1; then
+              echo "❌ Error: Assume role output does not contain valid credentials"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
@@ -541,12 +621,18 @@ jobs:
               exit 1
             fi
             
-            echo "OIDC token obtained successfully"
+            echo "OIDC token obtained successfully (length: ${#OIDC_TOKEN} chars)"
             
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
             echo "Assuming role: $ROLE_ARN"
+            echo "Session name: $ROLE_SESSION_NAME"
             
+            # Set AWS region before assuming role
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Assume role with detailed error handling
+            echo "Executing: aws sts assume-role-with-web-identity..."
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -556,9 +642,43 @@ jobs:
             
             ASSUME_ROLE_EXIT_CODE=$?
             
+            # Check for specific error types
             if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
-              echo "Error: Failed to assume role $ROLE_ARN"
+              echo "❌ Error: Failed to assume role $ROLE_ARN"
               echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "AWS CLI version: $(aws --version 2>&1)"
+              echo "Full error output:"
+              echo "$ASSUME_ROLE_OUTPUT"
+              
+              # Parse and display specific error messages
+              if echo "$ASSUME_ROLE_OUTPUT" | grep -qi "InvalidIdentityToken"; then
+                echo ""
+                echo "🔍 Error Analysis: InvalidIdentityToken"
+                echo "   - The OIDC token may be invalid or expired"
+                echo "   - Check GitHub OIDC provider configuration"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "AccessDenied"; then
+                echo ""
+                echo "🔍 Error Analysis: AccessDenied"
+                echo "   - The IAM role trust policy may not allow GitHub Actions"
+                echo "   - Verify the role trust policy includes GitHub OIDC provider"
+                echo "   - Check that the repository/org is allowed in the trust policy"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "NoSuchEntity"; then
+                echo ""
+                echo "🔍 Error Analysis: NoSuchEntity"
+                echo "   - The role $ROLE_ARN does not exist"
+                echo "   - Verify the role exists in account $ACCOUNT_ID"
+              elif echo "$ASSUME_ROLE_OUTPUT" | grep -qi "MalformedPolicyDocument"; then
+                echo ""
+                echo "🔍 Error Analysis: MalformedPolicyDocument"
+                echo "   - The role trust policy has syntax errors"
+              fi
+              
+              exit 1
+            fi
+            
+            # Verify the output is valid JSON with credentials
+            if ! echo "$ASSUME_ROLE_OUTPUT" | jq -e '.Credentials' > /dev/null 2>&1; then
+              echo "❌ Error: Assume role output does not contain valid credentials"
               echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
