@@ -1,4 +1,5 @@
 # Development Environment Configuration for S3 Buckets
+# This PR will trigger plan workflow on PR and apply on merge (no approval needed)
 terraform {
   source = "../../module"
 }
