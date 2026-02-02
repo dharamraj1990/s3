@@ -1,4 +1,5 @@
 # Production Environment Configuration for S3 Buckets
+# This configuration will trigger plan on PR and apply on merge with approval
 terraform {
   source = "../../module"
 }
