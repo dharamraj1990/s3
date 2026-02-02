@@ -8,7 +8,7 @@ on:
     paths:
       - 's3/env/**/terragrunt.hcl'
       - '.github/workflows/workflow.yaml'
-      - 'env.json'
+      - '.github/env.json'
 
   pull_request:
     branches:
@@ -17,7 +17,7 @@ on:
     paths:
       - 's3/env/**/terragrunt.hcl'
       - '.github/workflows/workflow.yaml'
-      - 'env.json'
+      - '.github/env.json'
 
 env:
   TERRAFORM_VERSION: '1.6.0'
@@ -85,7 +85,7 @@ jobs:
           echo "$CHANGED_PATHS" | tr '|' '\n' > changed_paths.txt
           
           # Read env.json
-          if [ -f "env.json" ]; then
+          if [ -f ".github/env.json" ]; then
             echo "env.json found"
           else
             echo "Warning: env.json not found"
@@ -104,8 +104,8 @@ jobs:
             echo "Processing: s3 in $ENV environment"
             
             # Read account ID from env.json
-            if [ -f "env.json" ]; then
-              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            if [ -f ".github/env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" .github/env.json)
             else
               ACCOUNT_ID=""
             fi
@@ -220,8 +220,8 @@ jobs:
             echo "Processing: s3 in $ENV environment (action: apply)"
             
             # Read account ID from env.json
-            if [ -f "env.json" ]; then
-              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            if [ -f ".github/env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" .github/env.json)
             else
               ACCOUNT_ID=""
             fi
@@ -334,8 +334,8 @@ jobs:
             echo "⚠️  Production environment - approval required"
             
             # Read account ID from env.json
-            if [ -f "env.json" ]; then
-              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            if [ -f ".github/env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" .github/env.json)
             else
               ACCOUNT_ID=""
             fi
