@@ -294,7 +294,6 @@ jobs:
           name: tfplans
           path: plan-artifacts/*
           retention-days: 1
-          if-no-files-found: ignore
 
   terraform-apply-nonprod:
     name: Terraform Apply (Non-Prod)
@@ -313,10 +312,10 @@ jobs:
 
       - name: Download plan artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: tfplans
           path: plan-artifacts/
-          if-no-files-found: ignore
 
       - name: Apply changes
         run: |
@@ -547,10 +546,10 @@ jobs:
 
       - name: Download plan artifacts
         uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
           name: tfplans
           path: plan-artifacts/
-          if-no-files-found: ignore
 
       - name: Apply changes to prod
         run: |
