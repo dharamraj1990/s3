@@ -1,6 +1,7 @@
 # Production Environment Configuration for S3 Buckets
 # This PR will trigger plan workflow and require approval for apply
 # Uses OIDC authentication with account_id 533269020590 from env.json
+# Updated workflow with fixed artifact download handling
 terraform {
   source = "../../module"
 }
