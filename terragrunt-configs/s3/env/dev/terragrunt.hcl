@@ -7,7 +7,7 @@ locals {
   # Read from environment variables
   aws_region   = get_env("AWS_REGION", get_env("AWS_DEFAULT_REGION", "us-east-1"))
   environment  = get_env("ENVIRONMENT", "dev")
-  project      = get_env("PROJECT", get_env("PROJECT_NAME", "dharamRaj"))
+  project      = get_env("PROJECT", get_env("PROJECT_NAME", "dharamRajSingh"))
   bucket_name_str = get_env("S3_BUCKET_NAME", "")
   bucket_type_str = get_env("S3_BUCKET_TYPE", "normal")
   
