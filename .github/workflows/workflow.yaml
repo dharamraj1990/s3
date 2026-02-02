@@ -6,7 +6,7 @@ on:
       - main
       - master
     paths:
-      - 's3/env/**/terragrunt.hcl'
+      - 'terragrunt-configs/s3/env/**/terragrunt.hcl'
       - '.github/workflows/workflow.yaml'
       - '.github/env.json'
 
@@ -15,7 +15,7 @@ on:
       - main
       - master
     paths:
-      - 's3/env/**/terragrunt.hcl'
+      - 'terragrunt-configs/s3/env/**/terragrunt.hcl'
       - '.github/workflows/workflow.yaml'
       - '.github/env.json'
 
@@ -49,7 +49,7 @@ jobs:
             HEAD_SHA="${{ github.event.after }}"
           fi
           
-          git diff --name-only $BASE_SHA $HEAD_SHA | grep -E '^s3/env/[^/]+/terragrunt\.hcl$' > changed_paths.txt || touch changed_paths.txt
+          git diff --name-only $BASE_SHA $HEAD_SHA | grep -E 'terragrunt-configs/s3/env/[^/]+/terragrunt\.hcl$' > changed_paths.txt || touch changed_paths.txt
           
           if [ -s changed_paths.txt ]; then
             PATHS=$(cat changed_paths.txt | tr '\n' '|' | sed 's/|$//')
@@ -99,7 +99,7 @@ jobs:
             
             # Extract environment from path (service is always s3)
             ENV=$(echo "$path" | sed -E 's|.*/s3/env/([^/]+)/terragrunt\.hcl|\1|')
-            WORKDIR="s3/env/$ENV"
+            WORKDIR="terragrunt-configs/s3/env/$ENV"
             
             echo "Processing: s3 in $ENV environment"
             
@@ -216,7 +216,7 @@ jobs:
               continue
             fi
             
-            WORKDIR="s3/env/$ENV"
+            WORKDIR="terragrunt-configs/s3/env/$ENV"
             echo "Processing: s3 in $ENV environment (action: apply)"
             
             # Read account ID from env.json
@@ -329,7 +329,7 @@ jobs:
               continue
             fi
             
-            WORKDIR="s3/env/$ENV"
+            WORKDIR="terragrunt-configs/s3/env/$ENV"
             echo "Processing: s3 in $ENV environment (action: apply)"
             echo "⚠️  Production environment - approval required"
             
