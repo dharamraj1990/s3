@@ -123,16 +123,32 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
+            # Install AWS CLI if not available
+            if ! command -v aws &> /dev/null; then
+              echo "Installing AWS CLI..."
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q awscliv2.zip
+              sudo ./aws/install
+              aws --version
+            fi
+            
             # Get OIDC token from GitHub Actions
-            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            echo "Requesting OIDC token from GitHub..."
+            OIDC_TOKEN_RESPONSE=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
+            OIDC_TOKEN=$(echo "$OIDC_TOKEN_RESPONSE" | jq -r '.value')
             
             if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
               echo "Error: Failed to get OIDC token from GitHub"
+              echo "Response: $OIDC_TOKEN_RESPONSE"
               exit 1
             fi
             
+            echo "OIDC token obtained successfully"
+            
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
+            echo "Assuming role: $ROLE_ARN"
+            
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -140,9 +156,12 @@ jobs:
               --duration-seconds 3600 \
               --output json 2>&1)
             
-            if [ $? -ne 0 ]; then
+            ASSUME_ROLE_EXIT_CODE=$?
+            
+            if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
-              echo "$ASSUME_ROLE_OUTPUT"
+              echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
@@ -152,7 +171,20 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
+            # Verify credentials
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
+              echo "Error: Failed to extract credentials from assume role output"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
+              exit 1
+            fi
+            
             echo "Successfully assumed role $ROLE_ARN"
+            
+            # Verify AWS credentials work
+            aws sts get-caller-identity || {
+              echo "Error: Failed to verify AWS credentials"
+              exit 1
+            }
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
@@ -274,16 +306,32 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
+            # Install AWS CLI if not available
+            if ! command -v aws &> /dev/null; then
+              echo "Installing AWS CLI..."
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q awscliv2.zip
+              sudo ./aws/install
+              aws --version
+            fi
+            
             # Get OIDC token from GitHub Actions
-            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            echo "Requesting OIDC token from GitHub..."
+            OIDC_TOKEN_RESPONSE=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
+            OIDC_TOKEN=$(echo "$OIDC_TOKEN_RESPONSE" | jq -r '.value')
             
             if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
               echo "Error: Failed to get OIDC token from GitHub"
+              echo "Response: $OIDC_TOKEN_RESPONSE"
               exit 1
             fi
             
+            echo "OIDC token obtained successfully"
+            
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
+            echo "Assuming role: $ROLE_ARN"
+            
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -291,9 +339,12 @@ jobs:
               --duration-seconds 3600 \
               --output json 2>&1)
             
-            if [ $? -ne 0 ]; then
+            ASSUME_ROLE_EXIT_CODE=$?
+            
+            if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
-              echo "$ASSUME_ROLE_OUTPUT"
+              echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
@@ -303,7 +354,20 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
+            # Verify credentials
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
+              echo "Error: Failed to extract credentials from assume role output"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
+              exit 1
+            fi
+            
             echo "Successfully assumed role $ROLE_ARN"
+            
+            # Verify AWS credentials work
+            aws sts get-caller-identity || {
+              echo "Error: Failed to verify AWS credentials"
+              exit 1
+            }
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
@@ -423,16 +487,32 @@ jobs:
             echo "  Region: ${{ env.AWS_REGION }}"
             echo "  Working directory: $WORKDIR"
             
+            # Install AWS CLI if not available
+            if ! command -v aws &> /dev/null; then
+              echo "Installing AWS CLI..."
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -q awscliv2.zip
+              sudo ./aws/install
+              aws --version
+            fi
+            
             # Get OIDC token from GitHub Actions
-            OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
+            echo "Requesting OIDC token from GitHub..."
+            OIDC_TOKEN_RESPONSE=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
+            OIDC_TOKEN=$(echo "$OIDC_TOKEN_RESPONSE" | jq -r '.value')
             
             if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" == "null" ]; then
               echo "Error: Failed to get OIDC token from GitHub"
+              echo "Response: $OIDC_TOKEN_RESPONSE"
               exit 1
             fi
             
+            echo "OIDC token obtained successfully"
+            
             # Assume role in the target account using OIDC
             ROLE_SESSION_NAME="github-actions-${ENV}-$(date +%s)"
+            echo "Assuming role: $ROLE_ARN"
+            
             ASSUME_ROLE_OUTPUT=$(aws sts assume-role-with-web-identity \
               --role-arn "$ROLE_ARN" \
               --role-session-name "$ROLE_SESSION_NAME" \
@@ -440,9 +520,12 @@ jobs:
               --duration-seconds 3600 \
               --output json 2>&1)
             
-            if [ $? -ne 0 ]; then
+            ASSUME_ROLE_EXIT_CODE=$?
+            
+            if [ $ASSUME_ROLE_EXIT_CODE -ne 0 ]; then
               echo "Error: Failed to assume role $ROLE_ARN"
-              echo "$ASSUME_ROLE_OUTPUT"
+              echo "Exit code: $ASSUME_ROLE_EXIT_CODE"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
               exit 1
             fi
             
@@ -452,7 +535,20 @@ jobs:
             export AWS_SESSION_TOKEN=$(echo "$ASSUME_ROLE_OUTPUT" | jq -r '.Credentials.SessionToken')
             export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
             
+            # Verify credentials
+            if [ -z "$AWS_ACCESS_KEY_ID" ] || [ "$AWS_ACCESS_KEY_ID" == "null" ]; then
+              echo "Error: Failed to extract credentials from assume role output"
+              echo "Output: $ASSUME_ROLE_OUTPUT"
+              exit 1
+            fi
+            
             echo "Successfully assumed role $ROLE_ARN"
+            
+            # Verify AWS credentials work
+            aws sts get-caller-identity || {
+              echo "Error: Failed to verify AWS credentials"
+              exit 1
+            }
             
             # Setup Terraform
             wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
