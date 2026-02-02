@@ -1,0 +1,402 @@
+name: S3 Terraform Plan and Apply
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 's3/env/**/terragrunt.hcl'
+      - '.github/workflows/workflow.yaml'
+      - 'env.json'
+
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 's3/env/**/terragrunt.hcl'
+      - '.github/workflows/workflow.yaml'
+      - 'env.json'
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  TERRAGRUNT_VERSION: '0.54.0'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  detect-changes:
+    name: Detect Changed Environments
+    runs-on: ubuntu-latest
+    outputs:
+      changed_paths: ${{ steps.detect.outputs.changed_paths }}
+      changed_environments: ${{ steps.detect.outputs.changed_environments }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed terragrunt.hcl files
+        id: detect
+        run: |
+          # Auto-detect from git changes (only s3)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.event.after }}"
+          fi
+          
+          git diff --name-only $BASE_SHA $HEAD_SHA | grep -E '^s3/env/[^/]+/terragrunt\.hcl$' > changed_paths.txt || touch changed_paths.txt
+          
+          if [ -s changed_paths.txt ]; then
+            PATHS=$(cat changed_paths.txt | tr '\n' '|' | sed 's/|$//')
+            ENVS=$(cat changed_paths.txt | sed -E 's|.*/s3/env/([^/]+)/terragrunt\.hcl|\1|' | sort -u | tr '\n' ',' | sed 's/,$//')
+            echo "changed_paths=$PATHS" >> $GITHUB_OUTPUT
+            echo "changed_environments=$ENVS" >> $GITHUB_OUTPUT
+            echo "Changed paths:"
+            cat changed_paths.txt
+            echo "Changed environments: $ENVS"
+          else
+            echo "changed_paths=" >> $GITHUB_OUTPUT
+            echo "changed_environments=" >> $GITHUB_OUTPUT
+            echo "No s3 terragrunt.hcl files changed"
+          fi
+
+  terraform-plan:
+    name: Terraform Plan
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.changed_paths != '' && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Parse changed paths and run plans
+        id: plan
+        run: |
+          CHANGED_PATHS="${{ needs.detect-changes.outputs.changed_paths }}"
+          echo "$CHANGED_PATHS" | tr '|' '\n' > changed_paths.txt
+          
+          # Read env.json
+          if [ -f "env.json" ]; then
+            echo "env.json found"
+          else
+            echo "Warning: env.json not found"
+          fi
+          
+          # Process each changed path
+          while IFS= read -r path || [ -n "$path" ]; do
+            if [ -z "$path" ]; then
+              continue
+            fi
+            
+            # Extract environment from path (service is always s3)
+            ENV=$(echo "$path" | sed -E 's|.*/s3/env/([^/]+)/terragrunt\.hcl|\1|')
+            WORKDIR="s3/env/$ENV"
+            
+            echo "Processing: s3 in $ENV environment"
+            
+            # Read account ID from env.json
+            if [ -f "env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            else
+              ACCOUNT_ID=""
+            fi
+            
+            echo "  Account ID: $ACCOUNT_ID"
+            echo "  Region: ${{ env.AWS_REGION }}"
+            echo "  Working directory: $WORKDIR"
+            
+            # Configure AWS credentials
+            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Setup Terraform
+            wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            unzip -q terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            sudo mv terraform /usr/local/bin/
+            terraform version
+            
+            # Setup Terragrunt
+            wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+            chmod +x terragrunt_linux_amd64
+            sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+            terragrunt --version
+            
+            # Run plan
+            cd "$WORKDIR"
+            export ENVIRONMENT="$ENV"
+            export AWS_REGION="${{ env.AWS_REGION }}"
+            export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+            export PROJECT="${{ secrets.PROJECT_NAME || 'default' }}"
+            export S3_BUCKET_TYPE="${{ secrets.S3_BUCKET_TYPE || 'normal' }}"
+            export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME || '' }}"
+            export S3_VERSIONING_ENABLED="${{ secrets.S3_VERSIONING_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_ENABLED="${{ secrets.S3_ENCRYPTION_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_TYPE="${{ secrets.S3_ENCRYPTION_TYPE || 'AES256' }}"
+            export S3_ENABLE_SECURE_TRANSPORT="${{ secrets.S3_ENABLE_SECURE_TRANSPORT || 'true' }}"
+            export S3_ENABLE_LIFECYCLE_POLICY="${{ secrets.S3_ENABLE_LIFECYCLE_POLICY || 'true' }}"
+            export S3_DEFAULT_LIFECYCLE_RULES="${{ secrets.S3_DEFAULT_LIFECYCLE_RULES || 'true' }}"
+            export S3_ACCESS_LOG_PREFIX="${{ secrets.S3_ACCESS_LOG_PREFIX || 'access-logs/' }}"
+            export S3_VPC_FLOW_LOG_PREFIX="${{ secrets.S3_VPC_FLOW_LOG_PREFIX || 'vpc-flow-logs/' }}"
+            
+            echo "Running terragrunt init and plan..."
+            terragrunt init
+            terragrunt plan -out=tfplan || {
+              echo "Plan failed for s3/$ENV"
+              exit 1
+            }
+            
+            # Save plan artifact
+            cd "${{ github.workspace }}"
+            mkdir -p plan-artifacts
+            cp "$WORKDIR/tfplan" "plan-artifacts/tfplan-s3-$ENV" || true
+            
+            echo "✅ Plan completed for s3/$ENV"
+          done < changed_paths.txt
+        env:
+          TERRAFORM_VERSION: ${{ env.TERRAFORM_VERSION }}
+          TERRAGRUNT_VERSION: ${{ env.TERRAGRUNT_VERSION }}
+
+      - name: Upload plan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tfplans
+          path: plan-artifacts/*
+          retention-days: 1
+          if-no-files-found: ignore
+
+  terraform-apply-nonprod:
+    name: Terraform Apply (Non-Prod)
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.changed_paths != '' && 
+      github.event_name == 'push' &&
+      !contains(needs.detect-changes.outputs.changed_environments, 'prod')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download plan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplans
+          path: plan-artifacts/
+          if-no-files-found: ignore
+
+      - name: Apply changes
+        run: |
+          CHANGED_PATHS="${{ needs.detect-changes.outputs.changed_paths }}"
+          echo "$CHANGED_PATHS" | tr '|' '\n' > changed_paths.txt
+          
+          # Process each changed path (skip prod)
+          while IFS= read -r path || [ -n "$path" ]; do
+            if [ -z "$path" ]; then
+              continue
+            fi
+            
+            # Extract environment from path
+            ENV=$(echo "$path" | sed -E 's|.*/s3/env/([^/]+)/terragrunt\.hcl|\1|')
+            
+            # Skip prod (handled in separate job)
+            if [ "$ENV" == "prod" ]; then
+              continue
+            fi
+            
+            WORKDIR="s3/env/$ENV"
+            echo "Processing: s3 in $ENV environment (action: apply)"
+            
+            # Read account ID from env.json
+            if [ -f "env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            else
+              ACCOUNT_ID=""
+            fi
+            
+            echo "  Account ID: $ACCOUNT_ID"
+            echo "  Region: ${{ env.AWS_REGION }}"
+            echo "  Working directory: $WORKDIR"
+            
+            # Configure AWS credentials
+            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Setup Terraform
+            wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            unzip -q terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            sudo mv terraform /usr/local/bin/
+            terraform version
+            
+            # Setup Terragrunt
+            wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+            chmod +x terragrunt_linux_amd64
+            sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+            terragrunt --version
+            
+            # Run apply
+            cd "$WORKDIR"
+            export ENVIRONMENT="$ENV"
+            export AWS_REGION="${{ env.AWS_REGION }}"
+            export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+            export PROJECT="${{ secrets.PROJECT_NAME || 'default' }}"
+            export S3_BUCKET_TYPE="${{ secrets.S3_BUCKET_TYPE || 'normal' }}"
+            export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME || '' }}"
+            export S3_VERSIONING_ENABLED="${{ secrets.S3_VERSIONING_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_ENABLED="${{ secrets.S3_ENCRYPTION_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_TYPE="${{ secrets.S3_ENCRYPTION_TYPE || 'AES256' }}"
+            export S3_ENABLE_SECURE_TRANSPORT="${{ secrets.S3_ENABLE_SECURE_TRANSPORT || 'true' }}"
+            export S3_ENABLE_LIFECYCLE_POLICY="${{ secrets.S3_ENABLE_LIFECYCLE_POLICY || 'true' }}"
+            export S3_DEFAULT_LIFECYCLE_RULES="${{ secrets.S3_DEFAULT_LIFECYCLE_RULES || 'true' }}"
+            export S3_ACCESS_LOG_PREFIX="${{ secrets.S3_ACCESS_LOG_PREFIX || 'access-logs/' }}"
+            export S3_VPC_FLOW_LOG_PREFIX="${{ secrets.S3_VPC_FLOW_LOG_PREFIX || 'vpc-flow-logs/' }}"
+            
+            terragrunt init
+            
+            # Try to use saved plan if available
+            if [ -f "${{ github.workspace }}/plan-artifacts/tfplan-s3-$ENV" ]; then
+              echo "Using saved plan artifact"
+              cp "${{ github.workspace }}/plan-artifacts/tfplan-s3-$ENV" tfplan
+              terragrunt apply tfplan || {
+                echo "Apply with plan failed, trying direct apply"
+                terragrunt apply -auto-approve
+              }
+            else
+              echo "No plan artifact found, running direct apply"
+              terragrunt apply -auto-approve
+            fi
+            
+            cd "${{ github.workspace }}"
+            echo "✅ Apply completed for s3/$ENV"
+          done < changed_paths.txt
+        env:
+          TERRAFORM_VERSION: ${{ env.TERRAFORM_VERSION }}
+          TERRAGRUNT_VERSION: ${{ env.TERRAGRUNT_VERSION }}
+
+  terraform-apply-prod:
+    name: Terraform Apply (Prod)
+    needs: [detect-changes]
+    if: |
+      needs.detect-changes.outputs.changed_paths != '' && 
+      github.event_name == 'push' &&
+      contains(needs.detect-changes.outputs.changed_environments, 'prod')
+    runs-on: ubuntu-latest
+    environment:
+      name: prod-approval
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download plan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplans
+          path: plan-artifacts/
+          if-no-files-found: ignore
+
+      - name: Apply changes to prod
+        run: |
+          CHANGED_PATHS="${{ needs.detect-changes.outputs.changed_paths }}"
+          echo "$CHANGED_PATHS" | tr '|' '\n' > changed_paths.txt
+          
+          # Process prod path
+          while IFS= read -r path || [ -n "$path" ]; do
+            if [ -z "$path" ]; then
+              continue
+            fi
+            
+            # Extract environment from path
+            ENV=$(echo "$path" | sed -E 's|.*/s3/env/([^/]+)/terragrunt\.hcl|\1|')
+            
+            # Only process prod
+            if [ "$ENV" != "prod" ]; then
+              continue
+            fi
+            
+            WORKDIR="s3/env/$ENV"
+            echo "Processing: s3 in $ENV environment (action: apply)"
+            echo "⚠️  Production environment - approval required"
+            
+            # Read account ID from env.json
+            if [ -f "env.json" ]; then
+              ACCOUNT_ID=$(jq -r ".\"$ENV\".account_id // empty" env.json)
+            else
+              ACCOUNT_ID=""
+            fi
+            
+            echo "  Account ID: $ACCOUNT_ID"
+            echo "  Region: ${{ env.AWS_REGION }}"
+            echo "  Working directory: $WORKDIR"
+            
+            # Configure AWS credentials
+            export AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}"
+            export AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}"
+            export AWS_DEFAULT_REGION="${{ env.AWS_REGION }}"
+            
+            # Setup Terraform
+            wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            unzip -q terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+            sudo mv terraform /usr/local/bin/
+            terraform version
+            
+            # Setup Terragrunt
+            wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+            chmod +x terragrunt_linux_amd64
+            sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+            terragrunt --version
+            
+            # Run apply
+            cd "$WORKDIR"
+            export ENVIRONMENT="$ENV"
+            export AWS_REGION="${{ env.AWS_REGION }}"
+            export AWS_ACCOUNT_ID="$ACCOUNT_ID"
+            export PROJECT="${{ secrets.PROJECT_NAME || 'default' }}"
+            export S3_BUCKET_TYPE="${{ secrets.S3_BUCKET_TYPE || 'normal' }}"
+            export S3_BUCKET_NAME="${{ secrets.S3_BUCKET_NAME || '' }}"
+            export S3_VERSIONING_ENABLED="${{ secrets.S3_VERSIONING_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_ENABLED="${{ secrets.S3_ENCRYPTION_ENABLED || 'true' }}"
+            export S3_ENCRYPTION_TYPE="${{ secrets.S3_ENCRYPTION_TYPE || 'AES256' }}"
+            export S3_ENABLE_SECURE_TRANSPORT="${{ secrets.S3_ENABLE_SECURE_TRANSPORT || 'true' }}"
+            export S3_ENABLE_LIFECYCLE_POLICY="${{ secrets.S3_ENABLE_LIFECYCLE_POLICY || 'true' }}"
+            export S3_DEFAULT_LIFECYCLE_RULES="${{ secrets.S3_DEFAULT_LIFECYCLE_RULES || 'true' }}"
+            export S3_ACCESS_LOG_PREFIX="${{ secrets.S3_ACCESS_LOG_PREFIX || 'access-logs/' }}"
+            export S3_VPC_FLOW_LOG_PREFIX="${{ secrets.S3_VPC_FLOW_LOG_PREFIX || 'vpc-flow-logs/' }}"
+            
+            terragrunt init
+            
+            # Try to use saved plan if available
+            if [ -f "${{ github.workspace }}/plan-artifacts/tfplan-s3-$ENV" ]; then
+              echo "Using saved plan artifact"
+              cp "${{ github.workspace }}/plan-artifacts/tfplan-s3-$ENV" tfplan
+              terragrunt apply tfplan || {
+                echo "Apply with plan failed, trying direct apply"
+                terragrunt apply -auto-approve
+              }
+            else
+              echo "No plan artifact found, running direct apply"
+              terragrunt apply -auto-approve
+            fi
+            
+            cd "${{ github.workspace }}"
+            echo "✅ Apply completed for s3/$ENV"
+          done < changed_paths.txt
+        env:
+          TERRAFORM_VERSION: ${{ env.TERRAFORM_VERSION }}
+          TERRAGRUNT_VERSION: ${{ env.TERRAGRUNT_VERSION }}
+
