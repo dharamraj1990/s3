@@ -1,4 +1,6 @@
 # Staging Environment Configuration for S3 Buckets
+# This PR will trigger plan workflow on PR and apply on merge (no approval needed)
+# Uses account_id 533269020590 from env.json
 terraform {
   source = "../../module"
 }
